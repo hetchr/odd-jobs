@@ -205,13 +205,13 @@ instance HasJobRunner RunnerM where
 -- standalone daemon.
 startJobRunner :: Config -> IO ()
 startJobRunner jm = do
-  traceM "startJobRunner top"
+  cfgLogger jm LevelDebug $ LogText "startJobRunner top"
   r <- newIORef []
   let monitorEnv = RunnerEnv
                    { envConfig = jm
                    , envJobThreadsRef = r
                    }
-  traceM "before runReaderT"
+  cfgLogger jm LevelDebug $ LogText "before runReaderT"
   runReaderT jobMonitor monitorEnv
 
 jobWorkerName :: IO String
@@ -439,7 +439,7 @@ runJob jid = do
 -- TODO: This might have a resource leak.
 restartUponCrash :: (HasJobRunner m, Show a) => Text -> m a -> m ()
 restartUponCrash name_ action = do
-  traceM "restartUponCrash top"
+  log LevelDebug $ LogText "restartUponCrash top"
   a <- async action
   finally (waitCatch a >>= fn) $ do
     (log LevelInfo $ LogText $ "Received shutdown: " <> toS name_)
@@ -449,7 +449,7 @@ restartUponCrash name_ action = do
       case x of
         Left (e :: SomeException) -> log LevelError $ LogText $ name_ <> " seems to have exited with an error. Restarting: " <> toS (show e)
         Right r -> log LevelError $ LogText $ name_ <> " seems to have exited with the folloing result: " <> toS (show r) <> ". Restaring."
-      traceM "CRASH OCCURRED"
+      log LevelDebug $ LogText "CRASH OCCURRED"
       restartUponCrash name_ action
 
 -- | Spawns 'jobPoller' and 'jobEventListener' in separate threads and restarts
@@ -458,10 +458,10 @@ restartUponCrash name_ action = do
 -- executed to finish execution before exiting the main thread.
 jobMonitor :: forall m . (HasJobRunner m) => m ()
 jobMonitor = do
-  traceM "jobMonitor top"
+  log LevelDebug $ LogText "jobMonitor top"
   a1 <- async $ restartUponCrash "Job poller" jobPoller
   a2 <- async $ restartUponCrash "Job event listener" jobEventListener
-  traceM "jobMonitor after async"
+  log LevelDebug $ LogText "jobMonitor after async"
   finally (void $ waitAnyCatch [a1, a2]) $ do
     log LevelInfo (LogText "Stopping jobPoller and jobEventListener threads.")
     cancel a2
@@ -530,7 +530,7 @@ jobPoller = do
   pool <- getDbPool
   tname <- getTableName
   lockTimeout <- getDefaultJobTimeout
-  traceM "jobPoller just before log statement"
+  log LevelDebug $ LogText "jobPoller just before log statement"
   log LevelInfo $ LogText $ toS $ "Starting the job monitor via DB polling with processName=" <> processName
   concurrencyControlFn <- getConcurrencyControlFn
   withResource pool $ \pollerDbConn -> forever $ concurrencyControlFn >>= \case

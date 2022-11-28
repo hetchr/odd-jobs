@@ -123,20 +123,16 @@ defaultStartCommand CommonStartArgs{..} mUIArgs cliType = do
     True -> do
       Daemon.runDetached (Just startPidFile) (Daemon.ToFile "/tmp/oddjobs.out") coreStartupFn
   where
-    uiArgs = fromJustNote "Please specify Web UI Startup Args" $ traceShowId mUIArgs
+    uiArgs = fromJustNote (traceShow mUIArgs "Please specify Web UI Startup Args") mUIArgs
     coreStartupFn =
       case cliType of
         CliOnlyJobRunner{..} -> do
           cliStartJobRunner Prelude.id
         CliOnlyWebUi{..} -> do
-          traceM "CliOnlyWebUi before"
           cliStartWebUI uiArgs Prelude.id
         CliBoth{..} -> do
-          traceM "CliBoth before"
           Async.withAsync (cliStartWebUI uiArgs Prelude.id) $ \_ -> do
-            traceM "CliBoth inside withAsync"
             cliStartJobRunner Prelude.id
-            traceM "CliBoth end"
 
 defaultWebUI :: UIStartArgs
              -> UIConfig
